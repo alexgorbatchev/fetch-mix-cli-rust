@@ -10,12 +10,12 @@ Read the parent instructions and applicable skills before editing. CLI work requ
 
 ## Development
 
-- This is an independent Cargo package with sibling path dependencies `../deps`, `../cli-command-kit`, and `../cli-event-stream`.
+- This is an independent Cargo package with revision-pinned GitHub dependencies on `deps-rust`, `cli-command-kit-rust`, and the `cli-event-stream` crate inside `fetch-track-cli-rust`.
 - Build with `just build`; the development binary is `bin/fetch-mix`. Run with `just run <args>` or `just run-ai <args>`.
 - Run `just check` for package-scoped formatting, strict Clippy, behavioral tests, and at least 90% line coverage. Coverage requires cargo-llvm-cov and llvm-tools.
 - Develop runtime changes with failing behavioral tests, then temporarily disable the change to prove the regression fails, restore it, and rerun. Keep logs in `.tmp/`.
 - Preserve the MIT license and source attribution. Keep Cargo.lock tracked. Do not publish or configure remotes without explicit authorization.
-- Rust artifacts are unpublished. Development builds use the sibling libraries. A canonical Go repository or its releases does not establish the availability of Rust artifacts or the revised usage skill.
+- Rust artifacts are unpublished. Development builds resolve the Git revisions pinned in `Cargo.toml`. A canonical Go repository or its releases does not establish the availability of Rust artifacts or the revised usage skill.
 
 ## Contracts
 
