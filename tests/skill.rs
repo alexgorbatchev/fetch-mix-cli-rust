@@ -17,8 +17,16 @@ fn usage_guide_tracks_live_commands_and_options() {
             .try_get_matches_from(["fetch-mix", "skill"])
             .unwrap();
         let mut output = Vec::new();
-        assert!(cli_command_kit::write_skill(&matches, &cli::help_options(), &mut output).unwrap());
-        assert_eq!(String::from_utf8(output).unwrap(), cli::SKILL_POINTER);
+        assert!(
+            cli_command_kit::write_skill(
+                &cli::command(mode),
+                &matches,
+                &cli::help_options(),
+                &mut output
+            )
+            .unwrap()
+        );
+        assert_eq!(String::from_utf8(output).unwrap(), INSTALL_TEXT);
         assert!(
             cli::command(mode)
                 .try_get_matches_from(["fetch-mix", "skill", "extra"])
@@ -26,3 +34,5 @@ fn usage_guide_tracks_live_commands_and_options() {
         );
     }
 }
+
+const INSTALL_TEXT: &str = "Install the fetch-mix skill using the Skills CLI:\n\n  npx skills add alexgorbatchev/fetch-mix-cli --skill fetch-mix\n\nSkill:\n\n  https://github.com/alexgorbatchev/fetch-mix-cli/tree/main/skills/fetch-mix\n";

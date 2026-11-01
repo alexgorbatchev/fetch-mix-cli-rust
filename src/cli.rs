@@ -20,11 +20,13 @@ mod metadata;
 mod pipeline;
 use metadata::{ai, dependencies};
 use pipeline::run_pipeline;
-pub const SKILL_POINTER: &str = "Install the fetch-mix skill using the Skills CLI:\n\n  npx skills add alexgorbatchev/fetch-mix-cli --skill fetch-mix\n\nSkill:\n\n  https://github.com/alexgorbatchev/fetch-mix-cli/tree/main/skills/fetch-mix\n";
 pub fn help_options() -> HelpOptions {
     let width = cli_command_kit::terminal_width();
     HelpOptions {
-        skill: Some(SKILL_POINTER.into()),
+        skill: Some(
+            cli_command_kit::SkillSource::new("alexgorbatchev/fetch-mix-cli", "main")
+                .expect("the fixed skill source names a GitHub repository"),
+        ),
         tree: cli_command_kit::TreeOptions {
             terminal_width: Some(if width == 0 { 80 } else { width }),
             ..Default::default()
@@ -194,7 +196,12 @@ pub async fn execute(
         std::io::stdout().write_all(concat!(env!("CARGO_PKG_VERSION"), "\n").as_bytes())?;
         return Ok(());
     }
-    if cli_command_kit::write_skill(matches, &help_options(), &mut std::io::stdout())? {
+    if cli_command_kit::write_skill(
+        &command(mode),
+        matches,
+        &help_options(),
+        &mut std::io::stdout(),
+    )? {
         return Ok(());
     }
     match matches.subcommand() {
