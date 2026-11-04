@@ -42,14 +42,16 @@ async fn native_pipe_output_streaming_cancellation_and_process_family_cleanup() 
     ));
     let pid: libc::pid_t = std::fs::read_to_string(leader).unwrap().parse().unwrap();
     assert_eq!(unsafe { libc::kill(pid, 0) }, -1);
-    let pid: libc::pid_t = std::fs::read_to_string(member).unwrap().parse().unwrap();
     #[cfg(target_os = "linux")]
-    assert!(
-        std::fs::read_to_string(format!("/proc/{pid}/stat")).map_or(true, |stat| stat
-            .split(')')
-            .nth(1)
-            .is_some_and(|s| s.trim_start().starts_with('Z')))
-    );
+    {
+        let pid: libc::pid_t = std::fs::read_to_string(member).unwrap().parse().unwrap();
+        assert!(
+            std::fs::read_to_string(format!("/proc/{pid}/stat")).map_or(true, |stat| stat
+                .split(')')
+                .nth(1)
+                .is_some_and(|s| s.trim_start().starts_with('Z')))
+        );
+    }
     assert!(
         process::capture(Path::new("/bin/sh"), &[], None, &token)
             .await

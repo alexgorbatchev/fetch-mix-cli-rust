@@ -215,6 +215,9 @@ fn blocked_fd_helper() {
         unsafe { libc::fcntl(write.as_raw_fd(), libc::F_SETFL, flags) },
         0
     );
+    // Writing can add kernel status bits to F_GETFL (Darwin reports one), so
+    // the expected state is read after the pipe is filled.
+    let flags = unsafe { libc::fcntl(write.as_raw_fd(), libc::F_GETFL) };
     let runtime = tokio::runtime::Runtime::new().unwrap();
     runtime.block_on(async {
         let token = CancellationToken::new();

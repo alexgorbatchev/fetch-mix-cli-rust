@@ -250,9 +250,12 @@ fn native_configured_release_install_ensure_update_and_self_replace() {
     for name in ["yt-dlp", "ffmpeg"] {
         std::fs::copy(common::track_fixture(), bin.join(name)).unwrap();
     }
-    let package = bin.join("apt-get");
-    std::fs::write(&package, "#!/bin/sh\nexit 0\n").unwrap();
-    std::fs::set_permissions(package, std::fs::Permissions::from_mode(0o755)).unwrap();
+    // The ffmpeg installer selects the platform's package manager.
+    for name in ["apt-get", "brew"] {
+        let package = bin.join(name);
+        std::fs::write(&package, "#!/bin/sh\nexit 0\n").unwrap();
+        std::fs::set_permissions(package, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
     let track_archive = common::archive(
         "fetch-track",
         &std::fs::read(common::track_fixture()).unwrap(),
