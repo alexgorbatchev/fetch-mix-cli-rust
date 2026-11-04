@@ -231,19 +231,24 @@ impl Pipes {
         )
     }
 
-    /// Discards buffered output, closing pipes that reached end of file.
+    /// Discards up to `LIMIT` bytes of buffered output from each pipe, closing
+    /// pipes that reached end of file or failed. The limit keeps a member that
+    /// writes without pause from holding off the grace deadline.
     fn drain(&mut self) {
         use std::io::Read;
+        const LIMIT: usize = 1 << 20;
         let mut buffer = [0; 8192];
         self.0.retain_mut(|pipe| {
-            loop {
+            let mut drained = 0;
+            while drained < LIMIT {
                 match pipe.read(&mut buffer) {
-                    Ok(0) => break false,
-                    Ok(_) => {}
+                    Ok(0) => return false,
+                    Ok(read) => drained += read,
                     Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
-                    Err(error) => break error.kind() == std::io::ErrorKind::WouldBlock,
+                    Err(error) => return error.kind() == std::io::ErrorKind::WouldBlock,
                 }
             }
+            true
         });
     }
 }

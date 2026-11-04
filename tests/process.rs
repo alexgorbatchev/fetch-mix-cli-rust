@@ -6,6 +6,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+const GRACE: Duration = Duration::from_secs(5);
+
 /// A shell script whose leader and background member record their process IDs
 /// and append the signals they trap to a log.
 struct Family {
@@ -132,7 +134,7 @@ async fn streams_both_pipes_and_returns_the_exit_status() {
         Path::new("/bin/sh"),
         &["-c".into(), "printf alpha; printf beta >&2; exit 7".into()],
         None,
-        process::TERMINATION_GRACE,
+        GRACE,
         &token,
         |bytes, stderr| {
             seen.push((bytes.to_vec(), stderr));
@@ -147,12 +149,12 @@ async fn streams_both_pipes_and_returns_the_exit_status() {
     assert!(seen.contains(&(b"alpha".to_vec(), false)));
     assert!(seen.contains(&(b"beta".to_vec(), true)));
     assert!(matches!(
-        capture(&[], process::TERMINATION_GRACE, &token).await,
+        capture(&[], GRACE, &token).await,
         Ok(output) if output.status.success()
     ));
     token.cancel();
     assert!(matches!(
-        capture(&[], process::TERMINATION_GRACE, &token).await,
+        capture(&[], GRACE, &token).await,
         Err(Error::Cancelled)
     ));
     assert!(
@@ -160,7 +162,7 @@ async fn streams_both_pipes_and_returns_the_exit_status() {
             Path::new("/nonexistent-mix-process"),
             &[],
             None,
-            process::TERMINATION_GRACE,
+            GRACE,
             &CancellationToken::new(),
             |_, _| Ok(()),
         )
@@ -297,13 +299,9 @@ async fn output_draining_is_bounded_after_the_leader_exits() {
         member = member.display()
     );
     let started = Instant::now();
-    let output = capture(
-        &["-c".into(), script],
-        process::TERMINATION_GRACE,
-        &CancellationToken::new(),
-    )
-    .await
-    .unwrap();
+    let output = capture(&["-c".into(), script], GRACE, &CancellationToken::new())
+        .await
+        .unwrap();
     let elapsed = started.elapsed();
     let id: libc::pid_t = std::fs::read_to_string(&member).unwrap().parse().unwrap();
     unsafe {
@@ -315,4 +313,31 @@ async fn output_draining_is_bounded_after_the_leader_exits() {
         elapsed >= Duration::from_secs(1) && elapsed < Duration::from_secs(10),
         "{elapsed:?}"
     );
+}
+
+#[tokio::test]
+async fn a_member_flooding_output_cannot_hold_off_sigkill() {
+    // The leader survives SIGTERM, and the member ignores it while writing
+    // without pause.
+    let (family, arguments) = Family::new("echo leader >> LOG", "");
+    let arguments = vec![
+        arguments[0].clone(),
+        arguments[1].replace("while :; do sleep 1; done'", "yes & yes & yes & exec yes'"),
+    ];
+    let grace = Duration::from_millis(500);
+    let token = CancellationToken::new();
+    let operation = capture(&arguments, grace, &token);
+    tokio::pin!(operation);
+    tokio::select! {
+        result = &mut operation => panic!("premature exit: {result:?}"),
+        _ = family.started() => {}
+    }
+    let started = Instant::now();
+    token.cancel();
+    let result = tokio::time::timeout(Duration::from_secs(10), &mut operation)
+        .await
+        .expect("cancellation finished despite the flood");
+    assert!(matches!(result, Err(Error::Cancelled)));
+    assert!(started.elapsed() >= grace);
+    assert!(family.exited_within(Duration::from_secs(2)).await);
 }
