@@ -19,7 +19,7 @@ fmt-check:
     cargo fmt --package fetch-mix-cli -- --check
 
 coverage:
-    cargo llvm-cov --all-targets --fail-under-lines 90
+    cargo llvm-cov --all-targets --fail-under-lines 90 --fail-under-functions 90
 
 check: fmt-check lint test coverage
 
