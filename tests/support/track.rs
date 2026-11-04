@@ -5,6 +5,7 @@ fn main(){
  let directory=PathBuf::from(value("--out-dir"));let target=value("--progress-target");let mode=std::env::var("FETCH_MIX_FIXTURE_MODE").unwrap_or_default();
  let mut stream:Box<dyn Write>=if target.starts_with("tcp://"){Box::new(TcpStream::connect(target.trim_start_matches("tcp://")).unwrap())}else{#[cfg(unix)]{Box::new(std::os::unix::net::UnixStream::connect(target.trim_start_matches("unix://")).unwrap())}#[cfg(not(unix))]{panic!("expected TCP")}};
  writeln!(stream,"{{\"type\":\"candidate_selected\",\"candidate\":{{\"title\":\"Chosen\",\"url\":\"https://example.invalid/audio\"}}}}").unwrap();
+ if mode=="linger"{if let Ok(path)=std::env::var("FETCH_MIX_FIXTURE_PID"){std::fs::write(path,std::process::id().to_string()).unwrap()}loop{if writeln!(stream,"{{\"type\":\"progress\",\"percent\":1}}").is_err(){std::thread::sleep(std::time::Duration::from_secs(60))}std::thread::sleep(std::time::Duration::from_millis(5))}}
  if mode=="fail"{writeln!(stream,"{{\"type\":\"error\",\"error\":\"native fixture failed\"}}").unwrap();std::process::exit(1)}
  let file=if mode=="outside"{directory.parent().unwrap().join("outside.flac")}else{directory.join("chosen.flac")};
  std::fs::write(&file,if mode=="empty"{&b""[..]}else{&b"audio fixture"[..]}).unwrap();

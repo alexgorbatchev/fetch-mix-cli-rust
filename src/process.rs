@@ -7,10 +7,6 @@ use std::{
 };
 use tokio::io::AsyncReadExt;
 
-/// Time a cancelled or abandoned process group gets to exit after SIGTERM
-/// before it receives SIGKILL.
-pub const TERMINATION_GRACE: Duration = cli_deps::DEFAULT_TERMINATION_GRACE;
-
 /// How long output pipes inherited by surviving group members are drained after
 /// the leader exits.
 const DRAIN: Duration = Duration::from_secs(2);

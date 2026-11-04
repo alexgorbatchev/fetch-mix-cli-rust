@@ -17,7 +17,7 @@ Discover a DJ set's tracklist and turn it into a numbered, resumable audio playl
 # How it Really Works
 
 - Web discovery queries MixesDB and mirror sites; direct URLs read the supplied page. Optional AI extraction sends page content or YouTube comments to the configured provider, whose usage may incur charges.
-- Every track runs as a separate `fetch-track` process with streamed progress. On Unix each child runs in its own process group: cancellation sends it SIGTERM and sends SIGKILL only to members still running after 5 seconds, so tools such as yt-dlp can remove their temporary files.
+- Every track runs as a separate `fetch-track` process with streamed progress. On Unix each child runs in its own process group: cancellation sends it SIGTERM and sends SIGKILL only to members still running after 10 seconds, longer than fetch-track waits for its own tools, so tools such as yt-dlp can remove their temporary files. YouTube comment extraction gives yt-dlp 5 seconds.
 - Atomic JSON manifests record complete track identity, file names, quality metrics, and failures; changed tracklists require another directory.
 - Cached page and extraction results live in an existing `.tmp/` or the platform cache directory. Repeat runs reuse complete artifacts and retry failed tracks; `--no-cache` disables Mix caches.
 - `AGENT=1` selects machine formatting. Stdout progress contains NDJSON, with diagnostics on stderr. Success exits 0, failures exit 1, and cancellation exits 130.

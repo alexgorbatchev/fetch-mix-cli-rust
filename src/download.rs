@@ -34,6 +34,9 @@ pub struct DownloadOptions {
     /// Time a cancelled downloader gets to exit after SIGTERM before SIGKILL.
     pub termination_grace: Duration,
 }
+/// Time a cancelled downloader gets after SIGTERM. It exceeds the grace period
+/// fetch-track gives its own children, so it can finish terminating them.
+pub const DOWNLOADER_GRACE: Duration = cli_deps::DEFAULT_TERMINATION_GRACE.saturating_mul(2);
 impl Default for DownloadOptions {
     fn default() -> Self {
         Self {
@@ -52,7 +55,7 @@ impl Default for DownloadOptions {
             socket_dir: ".tmp".into(),
             force_tcp: false,
             delay: Duration::from_secs(1),
-            termination_grace: process::TERMINATION_GRACE,
+            termination_grace: DOWNLOADER_GRACE,
         }
     }
 }
@@ -365,13 +368,14 @@ async fn download_one(
     let context = track_info(track, index, options.tracks.len(), "pending");
     let mut live = crate::ui::LiveOutput::new(ui);
     let display = options.verbose || ui.mode == cli_command_kit::Mode::Agent;
+    let child = token.child_token();
     let output = {
         let capture = process::capture_with(
             &options.executable,
             &args,
             options.path.as_deref(),
             options.termination_grace,
-            token,
+            &child,
             |bytes, stderr| {
                 if display {
                     live.feed(bytes, stderr)
@@ -381,9 +385,34 @@ async fn download_one(
             },
         );
         tokio::pin!(capture);
-        loop {
-            tokio::select! {output=&mut capture=>break output?,event=server.next()=>if let Some(event)=event{forward(options,event?,&context,&mut state,ui,token).await?}}
+        // A failed event stops forwarding and the downloader, which still gets
+        // its termination grace period before the error is returned.
+        let mut failure = None;
+        let mut events = true;
+        let output = loop {
+            tokio::select! {
+                output = &mut capture => break output,
+                event = server.next(), if events && failure.is_none() => match event {
+                    Some(event) => {
+                        let forwarded = match event {
+                            Ok(event) => {
+                                forward(options, event, &context, &mut state, ui, token).await
+                            }
+                            Err(error) => Err(error),
+                        };
+                        if let Err(error) = forwarded {
+                            failure = Some(error);
+                            child.cancel();
+                        }
+                    }
+                    None => events = false,
+                },
+            }
+        };
+        if let Some(error) = failure {
+            return Err(error);
         }
+        output?
     };
     for event in server.finish().await? {
         forward(options, event, &context, &mut state, ui, token).await?

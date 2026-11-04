@@ -197,3 +197,120 @@ async fn completion_rejects_outside_empty_and_overwrite_artifacts() {
         }
     }
 }
+
+/// Writes a fetch-track stand-in that ignores SIGTERM, records its process ID,
+/// and sends progress events until it is killed.
+#[cfg(unix)]
+fn lingering_downloader(directory: &std::path::Path) -> (std::path::PathBuf, std::path::PathBuf) {
+    use std::os::unix::fs::PermissionsExt;
+    let pid = directory.join("pid");
+    let quote =
+        |path: &std::path::Path| format!("'{}'", path.display().to_string().replace('\'', "'\\''"));
+    let script = directory.join("fetch-track");
+    std::fs::write(
+        &script,
+        format!(
+            "#!/bin/sh\ntrap '' TERM\nexport FETCH_MIX_FIXTURE_MODE=linger FETCH_MIX_FIXTURE_PID={}\nexec {} \"$@\"\n",
+            quote(&pid),
+            quote(&common::track_fixture())
+        ),
+    )
+    .unwrap();
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+    (script, pid)
+}
+
+#[cfg(unix)]
+fn exited(pid: &std::path::Path) -> bool {
+    let id: libc::pid_t = std::fs::read_to_string(pid).unwrap().parse().unwrap();
+    unsafe { libc::kill(id, 0) != 0 }
+}
+
+/// Cancellation reaches a downloader that ignores SIGTERM through SIGKILL
+/// after its grace period, and the download returns only once it is gone.
+#[cfg(unix)]
+#[tokio::test]
+async fn cancellation_waits_for_a_lingering_downloader() {
+    use fetch_mix_cli::progress::{Reporter, Server, Target};
+    let directory = common::scratch();
+    let (script, pid) = lingering_downloader(directory.path());
+    let token = CancellationToken::new();
+    let mut sink = Server::start(directory.path(), true, &token).await.unwrap();
+    let reporter = Reporter::connect(&Target::parse(&sink.target).unwrap(), &token)
+        .await
+        .unwrap();
+    let grace = std::time::Duration::from_millis(500);
+    let options = DownloadOptions {
+        title: "Lingering mix".into(),
+        tracks: vec![Track::new("Artist", "Title", "")],
+        output: Some(directory.path().join("output")),
+        reporter: Some(reporter),
+        executable: script,
+        force_tcp: true,
+        delay: std::time::Duration::ZERO,
+        termination_grace: grace,
+        ..Default::default()
+    };
+    let ui = Ui::new(Mode::Agent, std::io::sink());
+    let operation = download(&options, &ui, &token);
+    tokio::pin!(operation);
+    loop {
+        tokio::select! {
+            result = &mut operation => panic!("premature exit: {:?}", result.err()),
+            event = sink.next() => if event.unwrap().unwrap().kind == "progress" { break },
+        }
+    }
+    let started = std::time::Instant::now();
+    token.cancel();
+    let result = tokio::time::timeout(std::time::Duration::from_secs(10), &mut operation)
+        .await
+        .expect("cancellation finished");
+    assert!(matches!(result, Err(fetch_mix_cli::Error::Cancelled)));
+    assert!(started.elapsed() >= grace, "{:?}", started.elapsed());
+    assert!(exited(&pid), "the downloader outlived cancellation");
+}
+
+/// A progress event that cannot be forwarded stops the downloader, which still
+/// gets its grace period and is gone before the failure is reported.
+#[cfg(unix)]
+#[tokio::test]
+async fn forwarding_failure_terminates_the_downloader_before_returning() {
+    use fetch_mix_cli::progress::{Reporter, Server, Target};
+    let directory = common::scratch();
+    let (script, pid) = lingering_downloader(directory.path());
+    let token = CancellationToken::new();
+    let mut sink = Server::start(directory.path(), true, &token).await.unwrap();
+    let reporter = Reporter::connect(&Target::parse(&sink.target).unwrap(), &token)
+        .await
+        .unwrap();
+    let grace = std::time::Duration::from_millis(500);
+    let options = DownloadOptions {
+        title: "Lingering mix".into(),
+        tracks: vec![Track::new("Artist", "Title", "")],
+        output: Some(directory.path().join("output")),
+        reporter: Some(reporter),
+        executable: script,
+        force_tcp: true,
+        delay: std::time::Duration::ZERO,
+        termination_grace: grace,
+        ..Default::default()
+    };
+    let ui = Ui::new(Mode::Agent, std::io::sink());
+    let operation = download(&options, &ui, &token);
+    tokio::pin!(operation);
+    loop {
+        tokio::select! {
+            result = &mut operation => panic!("premature exit: {:?}", result.err()),
+            event = sink.next() => if event.unwrap().unwrap().kind == "progress" { break },
+        }
+    }
+    // Closing the progress consumer makes the next forwarded event fail.
+    drop(sink);
+    let started = std::time::Instant::now();
+    let result = tokio::time::timeout(std::time::Duration::from_secs(10), &mut operation)
+        .await
+        .expect("the failure was reported");
+    assert!(result.is_err());
+    assert!(started.elapsed() >= grace, "{:?}", started.elapsed());
+    assert!(exited(&pid), "the downloader outlived the failure");
+}
