@@ -1,6 +1,6 @@
 ---
 created_on: 2026-10-14 08:47
-last_modified: 2026-10-14 16:43
+last_modified: 2026-11-04 12:30
 status: current
 ---
 
@@ -26,7 +26,7 @@ Read the parent instructions and applicable skills before editing. CLI work requ
 - Preserve the native fetch-track 0.1.0 root workflow and NDJSON fields. Its result.path may contain `~/`; expand it before filesystem operations. Verify an actual nonempty regular artifact in the output directory before completing or resuming a track.
 - Keep full track identity and order in resume validation; reject mismatched or corrupt manifests. Never overwrite another numbered artifact.
 - Use `cli-event-stream::Reporter` directly for NDJSON transport, including readiness, duplicated descriptor ownership, and shared open-file flag restoration. Keep the mix event schema and timestamp enrichment in this package.
-- Child process groups must be killed and leaders reaped on cancellation or output failure. Keep inherited-pipe draining bounded after leader exit.
+- Children run in their own process groups, which terminal signals do not reach; main translates SIGINT and SIGTERM into token cancellation. On cancellation, output failure, or drop, send SIGTERM to the group, keep draining its pipes, send SIGKILL only to a group still alive after the bounded grace period, and reap the leader. A SIGKILL-only path leaks the one-file yt-dlp unpack directory. Keep inherited-pipe draining bounded after leader exit.
 - Drain queued native socket accepts before closing the progress listener. A fast child can connect/write/exit before the async accept task runs. Preserve the bounded 200 ms reader drain and regressions for both TCP and Unix sockets.
 - Installer and updater tests use local HTTP archives and isolated HOME, XDG directories, and PATH. Do not install canonical Go archives as Rust binaries or perform live external writes.
 - Explicit Rust release sources use all-or-none BASE_URL/OWNER/REPO environment variables. Parse channels with `cli_deps::ReleaseChannel` and update with `cli_deps::Updater`; retain typed current, installed, and unpublished outcomes. Dependency installation uses the native ReleaseClient archive integration.

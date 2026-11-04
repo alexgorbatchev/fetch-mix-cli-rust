@@ -1,6 +1,6 @@
 ---
 created_on: 2026-10-14 08:47
-last_modified: 2026-10-14 08:47
+last_modified: 2026-11-04 12:30
 status: current
 ---
 
@@ -8,9 +8,9 @@ status: current
 
 ## External tools
 
-Mix verifies Rust fetch-track >=0.1.0, yt-dlp >=2024.08.01, and ffmpeg >=4.4. Fetch-track additionally requires ffprobe >=4.4 for probing audio. YouTube comment extraction passes `--js-runtimes node` to yt-dlp, so Node must be installed. Managed executables are resolved before PATH from `$XDG_DATA_HOME/fetch-mix/bin`, default `~/.local/share/fetch-mix/bin` (LOCALAPPDATA fallback on Windows).
+Mix verifies Rust fetch-track >=0.1.0, yt-dlp >=2024.08.01, and ffmpeg >=4.4. Fetch-track additionally requires ffprobe >=4.4 for probing audio. YouTube comment extraction passes `--js-runtimes node` to yt-dlp, so Node must be installed. A tool on PATH that meets the minimum version takes precedence. Otherwise Mix uses the managed copy in `$XDG_DATA_HOME/fetch-mix/bin`, default `~/.local/share/fetch-mix/bin` (LOCALAPPDATA fallback on Windows). Child processes receive a PATH that resolves tools the same way. When an outdated managed copy would shadow a satisfying global one in that PATH, a real run fails as unsatisfied until `fetch-mix dependencies update` replaces the managed copy.
 
-`fetch-mix dependencies install` uses native release installation for fetch-track, yt-dlp release assets, and the operating system's package manager for ffmpeg. Updates use the corresponding native tool updater/package manager. Install/update operations may require privileges. Dry runs skip dependency verification, but uncached YouTube extraction still invokes yt-dlp.
+`fetch-mix dependencies install` uses native release installation for fetch-track, the unpacked yt-dlp release build, and the operating system's package manager for ffmpeg. The unpacked yt-dlp build runs from its own folder in the managed directory and writes nothing to the system temporary directory. Updates download the latest fetch-track and yt-dlp releases again and use the package manager for ffmpeg. Install/update operations may require privileges. Dry runs skip dependency verification, but uncached YouTube extraction still invokes yt-dlp.
 
 ## AI providers
 
@@ -48,4 +48,4 @@ Native release discovery uses `/OWNER/REPO/releases/latest` redirect tags. Downl
 - AGENT=1 enables machine output; FETCH_MIX_PROGRESS_TARGET supplies the fallback NDJSON target.
 - FETCH_MIX_DEV=1 or true selects the current `.tmp/` cache directory; an existing `.tmp/` also selects it.
 - HOME and platform directory settings determine home-folded display paths; XDG_CACHE_HOME/platform cache determines the cache fallback. XDG_DATA_HOME determines the managed tools directory.
-- PATH supplies external tools after managed executables. AI API keys are inherited by native provider clients and remain absent from metadata output.
+- PATH supplies external tools; a satisfying tool on PATH takes precedence over the managed copy. AI API keys are inherited by native provider clients and remain absent from metadata output.

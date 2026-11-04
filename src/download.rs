@@ -31,6 +31,8 @@ pub struct DownloadOptions {
     pub socket_dir: PathBuf,
     pub force_tcp: bool,
     pub delay: Duration,
+    /// Time a cancelled downloader gets to exit after SIGTERM before SIGKILL.
+    pub termination_grace: Duration,
 }
 impl Default for DownloadOptions {
     fn default() -> Self {
@@ -50,6 +52,7 @@ impl Default for DownloadOptions {
             socket_dir: ".tmp".into(),
             force_tcp: false,
             delay: Duration::from_secs(1),
+            termination_grace: process::TERMINATION_GRACE,
         }
     }
 }
@@ -367,6 +370,7 @@ async fn download_one(
             &options.executable,
             &args,
             options.path.as_deref(),
+            options.termination_grace,
             token,
             |bytes, stderr| {
                 if display {

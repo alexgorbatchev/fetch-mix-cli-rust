@@ -412,3 +412,91 @@ async fn pending_human_prompt_cancels_without_stdin_or_installation() {
         1
     );
 }
+
+/// The child runs in its own process group, so a terminal's Ctrl-C reaches
+/// only fetch-mix, which must translate it into SIGTERM for the child.
+#[cfg(unix)]
+#[test]
+fn interrupt_terminates_the_child_process_group_gracefully() {
+    use std::os::unix::fs::PermissionsExt;
+    let directory = common::scratch();
+    let bin = directory.path().join("bin");
+    std::fs::create_dir(&bin).unwrap();
+    let started = directory.path().join("started");
+    let log = directory.path().join("log");
+    let script = bin.join("yt-dlp");
+    std::fs::write(
+        &script,
+        format!(
+            "#!/bin/sh\ntrap 'echo term > \"{log}\"; exit 0' TERM INT\nprintf %s $$ > \"{started}\"\nwhile :; do sleep 1; done\n",
+            log = log.display(),
+            started = started.display()
+        ),
+    )
+    .unwrap();
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let mut child = command()
+        .args(["--dry-run", "--no-cache", "youtube", "V19eCd8Odo8"])
+        .current_dir(directory.path())
+        .env("HOME", directory.path())
+        .env("XDG_DATA_HOME", directory.path().join("data"))
+        .env("XDG_CACHE_HOME", directory.path().join("cache"))
+        .env("PATH", format!("{}:/bin:/usr/bin", bin.display()))
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    let pid = loop {
+        if let Some(pid) = std::fs::read_to_string(&started)
+            .ok()
+            .and_then(|s| s.parse::<libc::pid_t>().ok())
+        {
+            break pid;
+        }
+        if std::time::Instant::now() >= deadline || child.try_wait().unwrap().is_some() {
+            let _ = child.kill();
+            panic!("{:?}", child.wait_with_output().unwrap());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    };
+    let cleanup = scopeguard(pid, child.id() as libc::pid_t);
+    assert_ne!(
+        unsafe { libc::getpgid(pid) },
+        unsafe { libc::getpgid(child.id() as libc::pid_t) },
+        "the child shares fetch-mix's process group"
+    );
+    assert_eq!(
+        unsafe { libc::kill(child.id() as libc::pid_t, libc::SIGINT) },
+        0
+    );
+    let output = child.wait_with_output().unwrap();
+    assert_eq!(output.status.code(), Some(130), "{output:?}");
+    assert_eq!(std::fs::read_to_string(&log).unwrap().trim(), "term");
+    assert_ne!(
+        unsafe { libc::kill(pid, 0) },
+        0,
+        "the child outlived fetch-mix"
+    );
+    drop(cleanup);
+}
+
+/// Kills the child's process group and fetch-mix when a failed assertion left
+/// them running. A passing test has already verified both exited, and their IDs
+/// may be reused.
+#[cfg(unix)]
+fn scopeguard(group: libc::pid_t, process: libc::pid_t) -> impl Drop {
+    struct Guard(libc::pid_t, libc::pid_t);
+    impl Drop for Guard {
+        fn drop(&mut self) {
+            if !std::thread::panicking() {
+                return;
+            }
+            unsafe {
+                libc::kill(-self.0, libc::SIGKILL);
+                libc::kill(self.1, libc::SIGKILL);
+            }
+        }
+    }
+    Guard(group, process)
+}
