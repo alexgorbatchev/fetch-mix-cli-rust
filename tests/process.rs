@@ -45,13 +45,21 @@ async fn native_pipe_output_streaming_cancellation_and_process_family_cleanup() 
     assert_eq!(unsafe { libc::kill(pid, 0) }, -1);
     #[cfg(target_os = "linux")]
     {
+        // SIGKILL is asynchronous: the orphaned member becomes a zombie, or is
+        // reaped, shortly after the signal.
         let pid: libc::pid_t = std::fs::read_to_string(member).unwrap().parse().unwrap();
-        assert!(
-            std::fs::read_to_string(format!("/proc/{pid}/stat")).map_or(true, |stat| stat
-                .split(')')
-                .nth(1)
-                .is_some_and(|s| s.trim_start().starts_with('Z')))
-        );
+        let gone = || {
+            std::fs::read_to_string(format!("/proc/{pid}/stat")).map_or(true, |stat| {
+                stat.split(')')
+                    .nth(1)
+                    .is_some_and(|s| s.trim_start().starts_with('Z'))
+            })
+        };
+        let deadline = std::time::Instant::now() + Duration::from_secs(2);
+        while !gone() && std::time::Instant::now() < deadline {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert!(gone());
     }
     assert!(
         process::capture(Path::new("/bin/sh"), &[], None, &token)
