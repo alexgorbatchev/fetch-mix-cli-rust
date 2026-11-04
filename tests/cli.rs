@@ -413,6 +413,86 @@ async fn pending_human_prompt_cancels_without_stdin_or_installation() {
     );
 }
 
+#[cfg(unix)]
+#[tokio::test]
+async fn declined_human_prompt_installs_nothing_and_names_missing_tools() {
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
+    let directory = common::scratch();
+    let mut child = tokio::process::Command::new(env!("CARGO_BIN_EXE_fetch-mix"))
+        .arg("http://127.0.0.1:1/set")
+        .env("AGENT", "0")
+        .env("HOME", directory.path())
+        .env("XDG_DATA_HOME", directory.path().join("data"))
+        .env("PATH", directory.path())
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .unwrap();
+    let mut input = child.stdin.take().unwrap();
+    let mut output = tokio::io::BufReader::new(child.stdout.take().unwrap());
+    tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        loop {
+            let mut line = String::new();
+            assert!(output.read_line(&mut line).await.unwrap() > 0);
+            if line.contains("[y/N]") {
+                break;
+            }
+        }
+    })
+    .await
+    .unwrap();
+    input.write_all(b"n\n").await.unwrap();
+    drop(input);
+    let output = tokio::time::timeout(std::time::Duration::from_secs(3), child.wait_with_output())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("unsatisfied: fetch-track, yt-dlp, ffmpeg"),
+        "{stderr}"
+    );
+    let managed = directory.path().join("data/fetch-mix/bin");
+    assert_eq!(std::fs::read_dir(managed).unwrap().count(), 0);
+}
+
+#[cfg(unix)]
+#[test]
+fn auto_install_fails_when_the_installed_tool_remains_unsatisfied() {
+    use std::os::unix::fs::PermissionsExt;
+    let directory = common::scratch();
+    let bin = directory.path().join("bin");
+    std::fs::create_dir(&bin).unwrap();
+    for name in ["fetch-track", "yt-dlp"] {
+        std::fs::copy(common::track_fixture(), bin.join(name)).unwrap();
+    }
+    // The package manager reports success without providing ffmpeg.
+    for name in ["apt-get", "brew"] {
+        let package = bin.join(name);
+        std::fs::write(&package, "#!/bin/sh\nexit 0\n").unwrap();
+        std::fs::set_permissions(package, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    let output = command()
+        .args(["--auto-install", "--no-cache", "http://127.0.0.1:1/set"])
+        .current_dir(directory.path())
+        .env("HOME", directory.path())
+        .env("XDG_DATA_HOME", directory.path().join("data"))
+        .env("PATH", &bin)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stdout.contains("installed: ffmpeg"), "{stdout}");
+    assert!(
+        stderr.contains("dependencies are unsatisfied: ffmpeg"),
+        "{stderr}"
+    );
+}
+
 /// The child runs in its own process group, so a terminal's Ctrl-C reaches
 /// only fetch-mix, which must translate it into SIGTERM for the child.
 #[cfg(unix)]

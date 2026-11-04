@@ -1,9 +1,5 @@
 use crate::{CancellationToken, Error, Result, llm::Environment, releases, ui::Ui};
-use std::{
-    ffi::OsString,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{ffi::OsString, path::PathBuf, sync::Arc};
 pub const NAMES: [&str; 3] = ["fetch-track", "yt-dlp", "ffmpeg"];
 /// The managed tools. A global copy that satisfies the minimum version takes
 /// precedence over the managed one in `bin_dir`.
@@ -134,9 +130,6 @@ impl Dependencies {
         } else {
             Err(cli_deps::Error::Unsatisfied(missing.join(", ")).into())
         }
-    }
-    pub fn bin_dir(&self) -> &Path {
-        self.manager.bin_dir()
     }
 }
 pub async fn read_line(token: &CancellationToken) -> Result<String> {
