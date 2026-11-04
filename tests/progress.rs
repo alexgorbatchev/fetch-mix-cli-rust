@@ -1,3 +1,4 @@
+mod common;
 use fetch_mix_cli::{
     CancellationToken,
     progress::{Event, Reporter, Server, Target},
@@ -27,7 +28,7 @@ async fn shared_reporter_delivers_mix_schema_and_preserves_forwarded_timestamps(
 #[tokio::test]
 async fn sockets_forward_owned_fields_and_close_with_open_peer() {
     for tcp in [false, true] {
-        let dir = tempfile::tempdir_in(".tmp").unwrap();
+        let dir = common::scratch();
         let token = CancellationToken::new();
         let mut server = Server::start(dir.path(), tcp, &token).await.unwrap();
         let reporter = Reporter::connect(&Target::parse(&server.target).unwrap(), &token)
@@ -53,7 +54,7 @@ async fn sockets_forward_owned_fields_and_close_with_open_peer() {
 #[tokio::test(flavor = "current_thread")]
 async fn finish_drains_connection_queued_before_server_task_runs() {
     use std::io::Write;
-    let dir = tempfile::tempdir_in(".tmp").unwrap();
+    let dir = common::scratch();
     let token = CancellationToken::new();
     for tcp in [false, true] {
         let server = Server::start(dir.path(), tcp, &token).await.unwrap();
@@ -87,7 +88,7 @@ async fn finish_drains_connection_queued_before_server_task_runs() {
 
 #[tokio::test]
 async fn fragmented_events_and_cancelled_reporter() {
-    let dir = tempfile::tempdir_in(".tmp").unwrap();
+    let dir = common::scratch();
     let token = CancellationToken::new();
     let mut server = Server::start(dir.path(), true, &token).await.unwrap();
     let mut peer = tokio::net::TcpStream::connect(server.target.trim_start_matches("tcp://"))
@@ -125,7 +126,7 @@ async fn fragmented_events_and_cancelled_reporter() {
 
 #[tokio::test]
 async fn oversized_frame_is_bounded_and_fd_ownership_is_preserved() {
-    let dir = tempfile::tempdir_in(".tmp").unwrap();
+    let dir = common::scratch();
     let token = CancellationToken::new();
     let mut server = Server::start(dir.path(), true, &token).await.unwrap();
     let mut peer = tokio::net::TcpStream::connect(server.target.trim_start_matches("tcp://"))

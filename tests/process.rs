@@ -1,4 +1,5 @@
 #![cfg(unix)]
+mod common;
 use fetch_mix_cli::{CancellationToken, Error, process};
 use std::{path::Path, time::Duration};
 #[tokio::test]
@@ -21,7 +22,7 @@ async fn native_pipe_output_streaming_cancellation_and_process_family_cleanup() 
     assert_eq!(output.stdout, b"alpha");
     assert_eq!(output.stderr, b"beta");
     assert!(seen.iter().any(|(_, stderr)| *stderr));
-    let directory = tempfile::tempdir_in(".tmp").unwrap();
+    let directory = common::scratch();
     let leader = directory.path().join("leader");
     let member = directory.path().join("member");
     let script = format!(

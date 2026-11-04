@@ -91,7 +91,7 @@ fn metadata_validation_and_real_web_dry_run() {
             ))
             .unwrap()
     });
-    let directory = tempfile::tempdir_in(".tmp").unwrap();
+    let directory = common::scratch();
     let output = command()
         .args([
             "--dry-run",
@@ -118,7 +118,7 @@ fn metadata_validation_and_real_web_dry_run() {
 
 #[test]
 fn native_dependencies_web_download_cached_youtube_and_provider_inspection() {
-    let directory = tempfile::tempdir_in(".tmp").unwrap();
+    let directory = common::scratch();
     let directory = directory.path().canonicalize().unwrap();
     let bin = directory.join("fixture-bin");
     std::fs::create_dir_all(&bin).unwrap();
@@ -243,7 +243,7 @@ fn native_dependencies_web_download_cached_youtube_and_provider_inspection() {
 #[test]
 fn native_configured_release_install_ensure_update_and_self_replace() {
     use std::os::unix::fs::PermissionsExt;
-    let temp = tempfile::tempdir_in(".tmp").unwrap();
+    let temp = common::scratch();
     let directory = temp.path().canonicalize().unwrap();
     let bin = directory.join("bin");
     std::fs::create_dir_all(&bin).unwrap();
@@ -369,7 +369,7 @@ fn native_configured_release_install_ensure_update_and_self_replace() {
 #[tokio::test]
 async fn pending_human_prompt_cancels_without_stdin_or_installation() {
     use tokio::io::AsyncBufReadExt;
-    let directory = tempfile::tempdir_in(".tmp").unwrap();
+    let directory = common::scratch();
     let mut command = tokio::process::Command::new(env!("CARGO_BIN_EXE_fetch-mix"));
     command
         .arg("http://127.0.0.1:1/set")

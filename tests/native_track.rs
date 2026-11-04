@@ -35,7 +35,7 @@ async fn real_rust_track_native_audio_numbering_and_resume() {
             .stdout,
         b"0.1.0\n"
     );
-    let directory = tempfile::tempdir_in(".tmp").unwrap();
+    let directory = common::scratch();
     let root = directory.path().canonicalize().unwrap();
     let bin = root.join("bin");
     std::fs::create_dir(&bin).unwrap();

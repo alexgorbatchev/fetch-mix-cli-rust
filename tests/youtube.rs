@@ -8,7 +8,7 @@ use fetch_mix_cli::{
 use serde_json::json;
 #[tokio::test]
 async fn comments_native_process_ai_and_cache() {
-    let dir = tempfile::tempdir_in(".tmp").unwrap();
+    let dir = common::scratch();
     let script = dir.path().join("yt-dlp");
     let comments = json!({"title":"Live DJ Set","comments":[{"id":"c1","author":"Fan","text":"01. A - B\n02. C - D\n03. E - F","like_count":100}]});
     std::fs::write(

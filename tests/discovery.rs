@@ -57,7 +57,7 @@ async fn search_raw_scrape_mirrors_cache_and_cancellation() {
     assert_eq!(found[0].title, "Bicep - Essential Mix");
     let mirrors = discovery.mirrors("Polo & Pan", &token).await.unwrap();
     assert_eq!(mirrors[0].title, "Polo & Pan");
-    let dir = tempfile::tempdir_in(".tmp").unwrap();
+    let dir = common::scratch();
     let cache = Cache::new(dir.path().join("cache"));
     let content = discovery
         .scrape(&found[0].url, Some(&cache), &token)

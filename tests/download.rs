@@ -10,7 +10,7 @@ use fetch_mix_cli::{
 
 #[tokio::test]
 async fn dry_run_has_no_files_and_resume_validates_identity() {
-    let dir = tempfile::tempdir_in(".tmp").unwrap();
+    let dir = common::scratch();
     let target = dir.path().join("mix");
     let options = DownloadOptions {
         title: "..".into(),
@@ -39,7 +39,7 @@ async fn dry_run_has_no_files_and_resume_validates_identity() {
 #[tokio::test]
 async fn actual_progress_stream_preserves_result_metrics_and_context() {
     use fetch_mix_cli::progress::{Reporter, Server, Target};
-    let directory = tempfile::tempdir_in(".tmp").unwrap();
+    let directory = common::scratch();
     let token = CancellationToken::new();
     let mut server = Server::start(directory.path(), true, &token).await.unwrap();
     let reporter = Reporter::connect(&Target::parse(&server.target).unwrap(), &token)
@@ -98,7 +98,7 @@ async fn actual_progress_stream_preserves_result_metrics_and_context() {
 #[tokio::test]
 async fn child_artifact_numbering_playlist_resume_and_partial_failure() {
     use std::os::unix::fs::PermissionsExt;
-    let dir = tempfile::tempdir_in(".tmp").unwrap();
+    let dir = common::scratch();
     let script = dir.path().join("fetch-track");
     std::fs::write(&script,"#!/bin/sh\ncase \"$1\" in *Fail*) printf 'ERROR: fixture failure\\n' >&2; exit 1;; esac\nprintf audio > \"$3/Artist - Song.flac\"\n").unwrap();
     std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
@@ -151,7 +151,7 @@ async fn child_artifact_numbering_playlist_resume_and_partial_failure() {
 #[tokio::test]
 async fn completion_rejects_outside_empty_and_overwrite_artifacts() {
     use std::os::unix::fs::PermissionsExt;
-    let directory = tempfile::tempdir_in(".tmp").unwrap();
+    let directory = common::scratch();
     let fixture = common::track_fixture();
     let fixture = format!("'{}'", fixture.to_str().unwrap().replace('\'', "'\\''"));
     let ui = Ui::new(Mode::Agent, std::io::sink());

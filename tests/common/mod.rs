@@ -50,6 +50,13 @@ pub fn json(request: tiny_http::Request, value: serde_json::Value) {
         )
         .unwrap();
 }
+/// A scratch directory in the project's `.tmp`, which a fresh checkout lacks.
+#[allow(dead_code)]
+pub fn scratch() -> tempfile::TempDir {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(".tmp");
+    std::fs::create_dir_all(&root).unwrap();
+    tempfile::tempdir_in(root).unwrap()
+}
 #[allow(dead_code)]
 pub fn track_fixture() -> std::path::PathBuf {
     static FIXTURE: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();

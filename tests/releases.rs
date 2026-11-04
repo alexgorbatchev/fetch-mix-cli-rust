@@ -3,7 +3,7 @@ use fetch_mix_cli::{CancellationToken, llm::Environment, releases};
 use std::sync::Arc;
 #[tokio::test]
 async fn explicit_release_source_installs_native_archive_and_updates_atomically() {
-    let dir = tempfile::tempdir_in(".tmp").unwrap();
+    let dir = common::scratch();
     let mut gzip = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
     {
         let mut archive = tar::Builder::new(&mut gzip);

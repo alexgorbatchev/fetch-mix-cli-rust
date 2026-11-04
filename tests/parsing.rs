@@ -1,3 +1,4 @@
+mod common;
 use fetch_mix_cli::{cache::Cache, parser};
 
 #[test]
@@ -25,7 +26,7 @@ fn real_tracklist_formats_and_skips() {
 
 #[test]
 fn cache_round_trip_corruption_atomicity_and_safe_names() {
-    let dir = tempfile::tempdir_in(".tmp").unwrap();
+    let dir = common::scratch();
     let cache = Cache::new(dir.path().join("cache"));
     assert!(!cache.dir().exists());
     assert!(cache.get::<Vec<String>>("tracks.json").is_none());
