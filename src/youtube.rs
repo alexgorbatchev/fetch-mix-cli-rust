@@ -3,8 +3,8 @@ use crate::{
     cache::Cache,
     llm::Llm,
     model::{SkippedItem, Track},
-    process,
 };
+use cli_deps::CommandRunner;
 use serde::{Deserialize, Serialize};
 use std::{ffi::OsStr, path::Path};
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -117,14 +117,21 @@ pub async fn process(
         .into_iter()
         .chain([format!("https://www.youtube.com/watch?v={id}")])
         .collect::<Vec<_>>();
-        let output = process::capture(executable, &args, path, token).await?;
-        if !output.status.success() {
-            return Err(Error::Invalid(format!(
-                "yt-dlp comment extraction failed: {}",
-                cli_deps::sanitize_stderr(&String::from_utf8_lossy(&output.stderr))
-            )));
-        }
-        let info: Video = serde_json::from_slice(&output.stdout)?;
+        let runner = cli_deps::ProcessRunner {
+            path: path.map(OsStr::to_owned),
+            ..Default::default()
+        };
+        let stdout = match runner.run(executable.as_os_str(), &args, token).await {
+            Ok(stdout) => stdout,
+            Err(cli_deps::Error::Cancelled) => return Err(Error::Cancelled),
+            Err(cli_deps::Error::Command { stderr, .. }) => {
+                return Err(Error::Invalid(format!(
+                    "yt-dlp comment extraction failed: {stderr}"
+                )));
+            }
+            Err(error) => return Err(error.into()),
+        };
+        let info: Video = serde_json::from_slice(&stdout)?;
         if let Some(cache) = cache {
             cache.put(&comment_key, &info)?
         }

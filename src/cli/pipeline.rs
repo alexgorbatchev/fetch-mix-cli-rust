@@ -60,7 +60,8 @@ pub(super) async fn run_pipeline(
         let deps = Dependencies::new(environment)?;
         deps.ensure(matches.get_flag("auto-install"), &ui, token)
             .await?;
-        Some(deps)
+        let path = deps.child_path(token).await?;
+        Some((deps, path))
     };
     let cache = (!matches.get_flag("no-cache")).then(Cache::resolve);
     let provider = matches
@@ -93,15 +94,14 @@ pub(super) async fn run_pipeline(
             token,
         )
         .await?;
-        let executable = dependencies
-            .as_ref()
-            .map(|d| d.executable("yt-dlp"))
-            .transpose()?
-            .unwrap_or_else(|| PathBuf::from("yt-dlp"));
+        let executable = match &dependencies {
+            Some((deps, _)) => deps.executable("yt-dlp", token).await?,
+            None => PathBuf::from("yt-dlp"),
+        };
         let result = youtube::process(
             &query,
             &executable,
-            dependencies.as_ref().map(|d| d.path.as_os_str()),
+            dependencies.as_ref().map(|(_, path)| path.as_os_str()),
             cache.as_ref(),
             llm.as_ref(),
             token,
@@ -210,12 +210,11 @@ pub(super) async fn run_pipeline(
         skip_metadata: matches.get_flag("skip-metadata"),
         verbose: matches.get_flag("verbose"),
         reporter,
-        executable: dependencies
-            .as_ref()
-            .map(|d| d.executable("fetch-track"))
-            .transpose()?
-            .unwrap_or_else(|| "fetch-track".into()),
-        path: dependencies.map(|d| d.path),
+        executable: match &dependencies {
+            Some((deps, _)) => deps.executable("fetch-track", token).await?,
+            None => "fetch-track".into(),
+        },
+        path: dependencies.map(|(_, path)| path),
         ..Default::default()
     };
     download::download(&options, &ui, token).await

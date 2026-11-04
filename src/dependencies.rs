@@ -5,9 +5,10 @@ use std::{
     sync::Arc,
 };
 pub const NAMES: [&str; 3] = ["fetch-track", "yt-dlp", "ffmpeg"];
+/// The managed tools. A global copy that satisfies the minimum version takes
+/// precedence over the managed one in `bin_dir`.
 pub struct Dependencies {
     pub manager: cli_deps::Manager,
-    pub path: OsString,
     pub track_release: Option<cli_deps::ReleaseChannel>,
 }
 impl Dependencies {
@@ -15,7 +16,8 @@ impl Dependencies {
         let directory = cli_deps::ensure_managed_bin_dir("fetch-mix")?;
         let path = cli_deps::managed_path(&directory, std::env::var_os("PATH").as_deref())?;
         let runner = Arc::new(cli_deps::ProcessRunner {
-            path: Some(path.clone()),
+            path: Some(path),
+            ..Default::default()
         });
         let release = releases::from_environment("FETCH_TRACK", environment)?;
         let mut track = cli_deps::Dependency::new("fetch-track", "0.1.0");
@@ -32,7 +34,6 @@ impl Dependencies {
         youtube.install_url = "https://github.com/yt-dlp/yt-dlp#installation".into();
         youtube.installer = Some(Arc::new(cli_deps::YtDlpInstaller {
             client: cli_deps::ReleaseClient::github()?,
-            runner: runner.clone(),
         }));
         let mut ffmpeg = cli_deps::Dependency::new("ffmpeg", "4.4");
         ffmpeg.version_args = vec!["-version".into()];
@@ -46,17 +47,24 @@ impl Dependencies {
             dependencies: vec![track, youtube, ffmpeg],
             runner: Some(runner),
             bin_dir: Some(directory),
-            cache: None,
+            // Version checks repeat while resolving executables and the child
+            // PATH; installation clears the affected entries.
+            cache: Some(Arc::new(cli_deps::MemoryCache::default())),
+            search_path: None,
         })?;
         Ok(Self {
             manager,
-            path,
             track_release: release,
         })
     }
-    pub fn executable(&self, name: &str) -> Result<PathBuf> {
-        which::which_in(name, Some(&self.path), std::env::current_dir()?)
-            .map_err(|e| Error::Invalid(format!("{name} unavailable: {e}")))
+    /// The satisfying global or managed executable for `name`.
+    pub async fn executable(&self, name: &str, token: &CancellationToken) -> Result<PathBuf> {
+        Ok(self.manager.executable(name, token).await?)
+    }
+    /// The PATH for child processes, which resolves each tool to the copy
+    /// `executable` selects, including lookups the child makes itself.
+    pub async fn child_path(&self, token: &CancellationToken) -> Result<OsString> {
+        Ok(self.manager.child_path(token).await?)
     }
     pub async fn mutate(&self, name: &str, update: bool, token: &CancellationToken) -> Result<()> {
         if name == "fetch-track" && self.track_release.is_none() {
