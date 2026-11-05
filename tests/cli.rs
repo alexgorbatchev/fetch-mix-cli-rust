@@ -122,7 +122,7 @@ fn native_dependencies_web_download_cached_youtube_and_provider_inspection() {
     let directory = directory.path().canonicalize().unwrap();
     let bin = directory.join("fixture-bin");
     std::fs::create_dir_all(&bin).unwrap();
-    let fixture = common::track_fixture();
+    let fixture = common::track_fixture(directory.as_ref());
     for name in ["fetch-track", "yt-dlp", "ffmpeg"] {
         std::fs::copy(
             &fixture,
@@ -248,7 +248,7 @@ fn native_configured_release_install_ensure_update_and_self_replace() {
     let bin = directory.join("bin");
     std::fs::create_dir_all(&bin).unwrap();
     for name in ["yt-dlp", "ffmpeg"] {
-        std::fs::copy(common::track_fixture(), bin.join(name)).unwrap();
+        std::fs::copy(common::track_fixture(directory.as_ref()), bin.join(name)).unwrap();
     }
     // The ffmpeg installer selects the platform's package manager.
     for name in ["apt-get", "brew"] {
@@ -258,7 +258,7 @@ fn native_configured_release_install_ensure_update_and_self_replace() {
     }
     let track_archive = common::archive(
         "fetch-track",
-        &std::fs::read(common::track_fixture()).unwrap(),
+        &std::fs::read(common::track_fixture(directory.as_ref())).unwrap(),
     );
     let mix_archive = common::archive("fetch-mix", b"#!/bin/sh\nprintf '0.2.0\\n'\n");
     let server = common::Http::new(move |request| {
@@ -467,7 +467,7 @@ fn auto_install_fails_when_the_installed_tool_remains_unsatisfied() {
     let bin = directory.path().join("bin");
     std::fs::create_dir(&bin).unwrap();
     for name in ["fetch-track", "yt-dlp"] {
-        std::fs::copy(common::track_fixture(), bin.join(name)).unwrap();
+        std::fs::copy(common::track_fixture(directory.as_ref()), bin.join(name)).unwrap();
     }
     // The package manager reports success without providing ffmpeg.
     for name in ["apt-get", "brew"] {

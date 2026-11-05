@@ -50,7 +50,7 @@ async fn actual_progress_stream_preserves_result_metrics_and_context() {
         tracks: vec![Track::new("Artist", "Title", "1:23")],
         output: Some(directory.path().join("output")),
         reporter: Some(reporter),
-        executable: common::track_fixture(),
+        executable: common::track_fixture(directory.as_ref()),
         force_tcp: true,
         skip_metadata: true,
         skip_verify: true,
@@ -152,7 +152,7 @@ async fn child_artifact_numbering_playlist_resume_and_partial_failure() {
 async fn completion_rejects_outside_empty_and_overwrite_artifacts() {
     use std::os::unix::fs::PermissionsExt;
     let directory = common::scratch();
-    let fixture = common::track_fixture();
+    let fixture = common::track_fixture(directory.as_ref());
     let fixture = format!("'{}'", fixture.to_str().unwrap().replace('\'', "'\\''"));
     let ui = Ui::new(Mode::Agent, std::io::sink());
     for mode in ["outside", "empty", "fail", "collision"] {
@@ -212,7 +212,7 @@ fn lingering_downloader(directory: &std::path::Path) -> (std::path::PathBuf, std
         format!(
             "#!/bin/sh\ntrap '' TERM\nexport FETCH_MIX_FIXTURE_MODE=linger FETCH_MIX_FIXTURE_PID={}\nexec {} \"$@\"\n",
             quote(&pid),
-            quote(&common::track_fixture())
+            quote(&common::track_fixture(directory))
         ),
     )
     .unwrap();

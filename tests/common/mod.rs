@@ -50,34 +50,29 @@ pub fn json(request: tiny_http::Request, value: serde_json::Value) {
         )
         .unwrap();
 }
-/// A scratch directory in the project's `.tmp`, which a fresh checkout lacks.
+/// Test-owned scratch inside the runner's TMPDIR or the project's `.tmp`.
 #[allow(dead_code)]
 pub fn scratch() -> tempfile::TempDir {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(".tmp");
+    let root = std::env::var_os("TMPDIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(".tmp"));
     std::fs::create_dir_all(&root).unwrap();
     tempfile::tempdir_in(root).unwrap()
 }
 #[allow(dead_code)]
-pub fn track_fixture() -> std::path::PathBuf {
-    static FIXTURE: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
-    FIXTURE
-        .get_or_init(|| {
-            let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(".tmp/fixtures");
-            std::fs::create_dir_all(&directory).unwrap();
-            let file = directory.join(format!(
-                "track-fixture-{}{}",
-                std::process::id(),
-                std::env::consts::EXE_SUFFIX
-            ));
-            let status = std::process::Command::new("rustc")
-                .args(["--edition=2024", "tests/support/track.rs", "-o"])
-                .arg(&file)
-                .status()
-                .unwrap();
-            assert!(status.success());
-            file
-        })
-        .clone()
+pub fn track_fixture(directory: &std::path::Path) -> std::path::PathBuf {
+    let file = directory.join(format!("track-fixture{}", std::env::consts::EXE_SUFFIX));
+    if !file.exists() {
+        let status = std::process::Command::new("rustc")
+            .arg("--edition=2024")
+            .arg(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/support/track.rs"))
+            .arg("-o")
+            .arg(&file)
+            .status()
+            .unwrap();
+        assert!(status.success());
+    }
+    file
 }
 #[allow(dead_code)]
 pub fn archive(binary: &str, bytes: &[u8]) -> Vec<u8> {

@@ -7,7 +7,7 @@ build:
     cp target/release/fetch-mix bin/fetch-mix
 
 test:
-    cargo test --all-targets
+    bash scripts/run-tests.sh cargo test --all-targets
 
 lint:
     cargo clippy --all-targets -- -D warnings
@@ -19,12 +19,12 @@ fmt-check:
     cargo fmt --package fetch-mix-cli -- --check
 
 coverage:
-    cargo llvm-cov --all-targets --fail-under-lines 90 --fail-under-functions 90
+    bash scripts/run-tests.sh cargo llvm-cov --all-targets --fail-under-lines 90 --fail-under-functions 90
 
 check: fmt-check lint test coverage
 
 run *args:
-    cargo run --bin fetch-mix -- {{args}}
+    cargo run --bin fetch-mix -- {{ args }}
 
 run-ai *args:
-    AGENT=1 cargo run --bin fetch-mix -- {{args}}
+    AGENT=1 cargo run --bin fetch-mix -- {{ args }}
